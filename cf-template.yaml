@@ -18,7 +18,7 @@ Resources:
   VaultInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-8680b56d
+      ImageId: ami-c7e0c82c
       InstanceType: t2.micro
       KeyName: vault-poc
       SecurityGroups:
@@ -26,6 +26,7 @@ Resources:
       UserData:
         Fn::Base64: |
           #!/bin/bash
+          apt update && apt install -y unzip
           wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
           unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
@@ -44,7 +45,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: VaultInstance
     Properties:
-      ImageId: ami-8680b56d
+      ImageId: ami-c7e0c82c
       InstanceType: t2.micro
       KeyName: vault-poc
       SecurityGroups:
@@ -64,7 +65,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: EncrypterInstance
     Properties:
-      ImageId: ami-8680b56d
+      ImageId: ami-c7e0c82c
       InstanceType: t2.micro
       KeyName: vault-poc
       SecurityGroups:
