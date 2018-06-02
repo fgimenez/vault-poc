@@ -1,86 +1,28 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Vault as KMS replacement PoC.
 Resources:
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags:
-      - Key: Name
-        Value: vault-poc
-
-  PublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      MapPublicIpOnLaunch: true
-      CidrBlock: 10.0.0.0/16
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: vault-poc
-
-  VPCGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-
-  RouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: vault-poc
-
-  InternetRoute:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGateway
-    Properties:
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-      RouteTableId: !Ref RouteTable
-
-  SecurityGroup:
+  InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: "Internet Group"
       GroupDescription: "SSH traffic in, all traffic out."
-      VpcId: !Ref VPC
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: '22'
         ToPort: '22'
         CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-      - IpProtocol: -1
-        CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
         Value: vault-poc
 
-  VaultNetInt:
-    Type: AWS::EC2::NetworkInterface
-    Properties:
-      SubnetId: !Ref PublicSubnet
-      Tags:
-      - Key: Name
-        Value: vault-poc-vault
-
   VaultInstance:
-    Type: "AWS::EC2::Instance"
+    Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
-      NetworkInterfaces:
-        - NetworkInterfaceId: !Ref VaultNetInt
-          DeviceIndex: 0
+      SecurityGroups:
+        - Ref: InstanceSecurityGroup
       UserData:
         Fn::Base64: |
           #!/bin/bash
@@ -98,24 +40,15 @@ Resources:
       - Key: Name
         Value: vault-poc-vault
 
-  EncrypterNetInt:
-    Type: AWS::EC2::NetworkInterface
-    Properties:
-      SubnetId: !Ref PublicSubnet
-      Tags:
-      - Key: Name
-        Value: vault-poc-encrypter
-
   EncrypterInstance:
-    Type: "AWS::EC2::Instance"
+    Type: AWS::EC2::Instance
     DependsOn: VaultInstance
     Properties:
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
-      NetworkInterfaces:
-        - NetworkInterfaceId: !Ref EncrypterNetInt
-          DeviceIndex: 0
+      SecurityGroups:
+        - Ref: InstanceSecurityGroup
       UserData:
         Fn::Base64: !Sub
           - |
@@ -127,24 +60,15 @@ Resources:
       - Key: Name
         Value: vault-poc-encrypter
 
-  DecrypterNetInt:
-    Type: AWS::EC2::NetworkInterface
-    Properties:
-      SubnetId: !Ref PublicSubnet
-      Tags:
-      - Key: Name
-        Value: vault-poc-decrypter
-
   DecrypterInstance:
-    Type: "AWS::EC2::Instance"
+    Type: AWS::EC2::Instance
     DependsOn: EncrypterInstance
     Properties:
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
-      NetworkInterfaces:
-        - NetworkInterfaceId: !Ref DecrypterNetInt
-          DeviceIndex: 0
+      SecurityGroups:
+        - Ref: InstanceSecurityGroup
       UserData:
         Fn::Base64: !Sub
           - |
