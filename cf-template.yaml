@@ -75,7 +75,6 @@ Resources:
   VaultInstance:
     Type: "AWS::EC2::Instance"
     Properties:
-      SubnetId: !Ref PublicSubnet
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
@@ -111,7 +110,6 @@ Resources:
     Type: "AWS::EC2::Instance"
     DependsOn: VaultInstance
     Properties:
-      SubnetId: !Ref PublicSubnet
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
@@ -141,7 +139,6 @@ Resources:
     Type: "AWS::EC2::Instance"
     DependsOn: EncrypterInstance
     Properties:
-      SubnetId: !Ref PublicSubnet
       ImageId: ami-8680b56d
       InstanceType: t2.micro
       KeyName: vault-poc
