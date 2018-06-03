@@ -47,7 +47,7 @@ Resources:
     Properties:
       ImageId: ami-c7e0c82c
       InstanceType: t2.micro
-      IamInstanceProfile: !Ref S3AccessInstanceProfile
+      IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
       SecurityGroups:
         - Ref: InstanceSecurityGroup
@@ -55,10 +55,7 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
-            apt update && apt install -y unzip python-pip
-
-            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
-            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
+            apt update && apt install -y python-pip
 
             export LC_ALL=C
             pip install awscli
@@ -78,7 +75,7 @@ Resources:
     Properties:
       ImageId: ami-c7e0c82c
       InstanceType: t2.micro
-      IamInstanceProfile: !Ref S3AccessInstanceProfile
+      IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
       SecurityGroups:
         - Ref: InstanceSecurityGroup
@@ -86,10 +83,7 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
-            apt update && apt install -y unzip python-pip
-
-            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
-            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
+            apt update && apt install -y python-pip
 
             export LC_ALL=C
             pip install awscli
@@ -108,7 +102,7 @@ Resources:
     Properties:
       BucketName: vault-poc-secret
 
-  S3AccessRole:
+  AccessRole:
     Type: "AWS::IAM::Role"
     Properties:
       RoleName: vault-poc-secret-access
@@ -120,12 +114,19 @@ Resources:
             Service: "ec2.amazonaws.com"
           Action: "sts:AssumeRole"
 
-  S3AccessPolicy:
+  AccessInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      InstanceProfileName: vault-poc-secret-access
+      Roles:
+        - Ref: AccessRole
+
+  AccessPolicy:
     Type: "AWS::IAM::Policy"
     Properties:
       PolicyName: vault-poc-secret-access
       Roles:
-        - Ref: S3AccessRole
+        - Ref: AccessRole
       PolicyDocument:
         Statement:
           - Effect: "Allow"
@@ -134,9 +135,14 @@ Resources:
               - "s3:PutObject"
             Resource: "arn:aws:s3:::vault-poc-secret/*"
 
-  S3AccessInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      InstanceProfileName: vault-poc-secret-access
-      Roles:
-        - Ref: S3AccessRole
+          - Effect: "Allow"
+            Action:
+              - "autoscaling:DescribeAutoScalingGroups"
+              - "autoscaling:DescribeAutoScalingInstances"
+              - "ec2:DescribeAvailabilityZones"
+              - "ec2:DescribeInstanceAttribute"
+              - "ec2:DescribeInstanceStatus"
+              - "ec2:DescribeInstances"
+              - "ec2:DescribeVpcs"
+              - "ec2:DescribeTags"
+            Resource: "*"
