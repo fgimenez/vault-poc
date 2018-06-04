@@ -33,13 +33,19 @@ Resources:
             unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
             export VAULT_DEV_ROOT_TOKEN_ID=root
+            export VAULT_TOKEN=root
             export VAULT_ADDR=http://127.0.0.1:8200
 
             vault server -dev &
 
             vault secrets enable transit
             vault write -f transit/keys/test
-            vault write sys/policy/test policy="path \"transit/keys/test\" {\n capabilities = [\"read\", \"write\"]\n}"
+            cat <<EOF > policy.hcl
+            path "transit/keys/test" {
+              capabilities = ["read"]
+            }
+            EOF
+            vault write sys/policy/test policy=@policy.hcl
 
             vault auth enable aws
             test_role_payload=$(cat <<EOF
