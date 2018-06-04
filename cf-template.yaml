@@ -25,20 +25,43 @@ Resources:
       SecurityGroups:
         - Ref: InstanceSecurityGroup
       UserData:
-        Fn::Base64: |
-          #!/bin/bash
-          apt update && apt install -y unzip
-          wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
-          unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            apt update && apt install -y unzip
+            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
+            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
-          export VAULT_DEV_ROOT_TOKEN_ID=root
-          export VAULT_ADDR=http://127.0.0.1:8200
+            export VAULT_DEV_ROOT_TOKEN_ID=root
+            export VAULT_ADDR=http://127.0.0.1:8200
 
-          vault server -dev &
+            vault server -dev &
 
-          vault secrets enable transit
-          vault auth enable aws
+            vault secrets enable transit
+            vault write -f transit/keys/test
+            vault write sys/policy/test policy="path \"transit/keys/test\" {\n capabilities = [\"read\", \"write\"]\n}"
 
+            vault auth enable aws
+            test_role_payload=$(cat <<EOF
+            {
+              "auth_type": "ec2",
+              "bound_region": "eu-central-1",
+              "bound_iam_role_arn": "${AccessRoleARN}"
+              "policies": "test",
+              "max_ttl": 1800000,
+              "disallow_reauthentication": false,
+              "allow_instance_migration": false
+            }
+            EOF
+            )
+            curl \
+              --silent \
+              --header "X-Vault-Token: $${VAULT_TOKEN}" \
+              --request POST \
+              --data "${test_role_payload}" \
+              ${VAULT_ADDR}/v1/auth/aws/role/test
+
+          - { AccessRoleARN: !GetAtt AccessRole.Arn }
       Tags:
       - Key: Name
         Value: vault-poc-vault
