@@ -56,10 +56,10 @@ Resources:
             )
             curl \
               --silent \
-              --header "X-Vault-Token: $${VAULT_TOKEN}" \
+              --header "X-Vault-Token: $VAULT_TOKEN" \
               --request POST \
               --data "${test_role_payload}" \
-              ${VAULT_ADDR}/v1/auth/aws/role/test
+              $VAULT_ADDR/v1/auth/aws/role/test
 
           - { AccessRoleARN: !GetAtt AccessRole.Arn }
       Tags:
