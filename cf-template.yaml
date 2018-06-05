@@ -76,8 +76,8 @@ Resources:
             vault secrets enable transit
             vault write -f transit/keys/test
             cat <<EOF > policy.hcl
-            path "transit/keys/test" {
-              capabilities = ["read"]
+            path "transit/*" {
+              capabilities = ["create", "read", "update", "delete", "list"]
             }
             EOF
             vault write sys/policy/test policy=@policy.hcl
@@ -158,7 +158,10 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
-            apt update && apt install -y python-pip jq
+            apt update && apt install -y python-pip jq unzip
+
+            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
+            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
             export LC_ALL=C
             pip install awscli
@@ -269,7 +272,10 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
-            apt update && apt install -y python-pip jq
+            apt update && apt install -y python-pip jq unzip
+
+            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
+            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
             export LC_ALL=C
             pip install awscli
