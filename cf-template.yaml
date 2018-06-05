@@ -252,6 +252,8 @@ Resources:
 
             chmod a+x /usr/local/bin/awsauth.sh
 
+            awsauth.sh
+
           - { VaultIP: !GetAtt VaultInstance.PrivateIp }
 
       Tags:
@@ -366,11 +368,129 @@ Resources:
 
             chmod a+x /usr/local/bin/awsauth.sh
 
+            awsauth.sh
+
+
           - { VaultIP: !GetAtt VaultInstance.PrivateIp }
 
       Tags:
       - Key: Name
         Value: vault-poc-decrypter
+
+  NonAuthorizedInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: EncrypterInstance
+    Properties:
+      ImageId: ami-4f508c22
+      InstanceType: t2.micro
+      KeyName: vault-poc
+      SecurityGroups:
+        - Ref: InstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            apt update && apt install -y python-pip jq unzip
+
+            wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
+            unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
+
+            export LC_ALL=C
+            pip install awscli
+
+            export VAULT_ADDR=http://${VaultIP}
+
+            echo ${VaultIP} | tee /vaultip.txt
+
+            cat << 'SCRIPT' > /usr/local/bin/awsauth.sh
+            #!/usr/bin/env bash
+
+            token_path=/var/token
+            nonce_path=/var/nonce
+
+            # if curl pkcs7 fails, exit with error logged
+            token_exists () {
+              if [ -f $token_path ]; then
+                return 0
+              else
+                return 1
+              fi
+            }
+
+            token_is_valid() {
+              #  https://www.vaultproject.io/api/auth/token/index.html#lookup-a-token-self-
+              echo "Checking token validity"
+              token_lookup=$(curl \
+                --request GET \
+                --header "X-Vault-Token: $(cat $token_path)" \
+                --write-out %{http_code} \
+                --silent \
+                --output /dev/null \
+                http://${VaultIP}:8200/v1/auth/token/lookup-self)
+              if [ "$token_lookup" == "200" ]; then
+                echo "$0 - Valid token found, exiting"
+                return 0
+              else
+                echo "$0 - Invalid token found"
+                return 1
+              fi
+            }
+
+            main () {
+              if ! token_exists; then
+                aws_login ""
+              elif token_exists && ! token_is_valid; then
+                aws_login "$(cat $nonce_path)"
+              else
+                logger $0 "current vault token is still valid"
+                exit 0
+              fi
+            }
+
+            aws_login () {
+              pkcs7=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/pkcs7 | tr -d '\n')
+              if [ -z "$1" ]; then
+                # do not load nonce if initial login
+                login_payload=$(cat <<EOF
+            {
+              "role": "test",
+              "pkcs7": "$pkcs7"
+            }
+            EOF
+              )
+              else
+                # load nonce in payload for reauthentication
+                login_payload=$(cat <<EOF
+            {
+              "role": "test",
+              "pkcs7": "$pkcs7",
+              "nonce": "$1"
+            }
+            EOF
+              )
+              fi
+
+              curl \
+                --silent \
+                --request POST \
+                --data "$login_payload" \
+                http://${VaultIP}:8200/v1/auth/aws/login | tee \
+                >(jq -r .auth.client_token > $token_path) \
+                >(jq -r .auth.metadata.nonce > $nonce_path)
+            }
+
+            main
+            SCRIPT
+
+            chmod a+x /usr/local/bin/awsauth.sh
+
+            awsauth.sh
+
+          - { VaultIP: !GetAtt VaultInstance.PrivateIp }
+
+      Tags:
+      - Key: Name
+        Value: vault-poc-nonauthorized
 
   SecretS3Bucket:
     Type: AWS::S3::Bucket
