@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Vault as KMS replacement PoC.
 
+Parameters:
+  AccessKey:
+    Type: String
+  SecretKeyId:
+    Type: String
+
 Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -12,6 +18,10 @@ Resources:
         FromPort: '22'
         ToPort: '22'
         CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '8200'
+        ToPort: '8200'
+        CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
         Value: vault-poc
@@ -19,7 +29,7 @@ Resources:
   VaultInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-c7e0c82c
+      ImageId: ami-a1ccd8c3
       InstanceType: t2.micro
       KeyName: vault-poc
       SecurityGroups:
@@ -28,15 +38,37 @@ Resources:
         Fn::Base64: !Sub
           - |
             #!/bin/bash
-            apt update && apt install -y unzip
+            apt update && apt install -y unzip jq
             wget https://releases.hashicorp.com/vault/0.10.1/vault_0.10.1_linux_amd64.zip
             unzip vault_0.10.1_linux_amd64.zip -d /usr/local/bin
 
-            export VAULT_DEV_ROOT_TOKEN_ID=root
-            export VAULT_TOKEN=root
             export VAULT_ADDR=http://127.0.0.1:8200
 
-            vault server -dev &
+            cat <<EOF > config.hcl
+            storage "inmem" {}
+            listener "tcp" {
+              address = "0.0.0.0:8200"
+              tls_disable = 1
+            }
+            disable_mlock = true
+            EOF
+            vault server -config=config.hcl &
+            sleep 3
+
+            curl \
+              --silent \
+              --request PUT \
+              --data '{"secret_shares": 1, "secret_threshold": 1}' \
+              $VAULT_ADDR/v1/sys/init | tee >(jq -r .root_token > /tmp/root_token) >(jq -r .keys[0] > /tmp/key)
+
+            key=$(cat /tmp/key)
+            curl \
+              --silent \
+              --request PUT \
+              --data '{"key": "'"$key"'"}' \
+              $VAULT_ADDR/v1/sys/unseal
+
+            export VAULT_TOKEN=$(cat /tmp/root_token)
 
             vault secrets enable transit
             vault write -f transit/keys/test
@@ -48,11 +80,19 @@ Resources:
             vault write sys/policy/test policy=@policy.hcl
 
             vault auth enable aws
+
+            curl \
+              --silent \
+              --header "X-Vault-Token: $VAULT_TOKEN" \
+              --request POST \
+              --data '{ "access_key": "${AccessKey}", "secret_key": "${SecretKeyId}"}' \
+              $VAULT_ADDR/v1/auth/aws/config/client
+
             test_role_payload=$(cat <<EOF
             {
               "auth_type": "ec2",
               "bound_region": "eu-central-1",
-              "bound_iam_role_arn": "${AccessRoleARN}"
+              "bound_iam_role_arn": "${AccessRoleARN}",
               "policies": "test",
               "max_ttl": 1800000,
               "disallow_reauthentication": false,
@@ -76,7 +116,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: VaultInstance
     Properties:
-      ImageId: ami-c7e0c82c
+      ImageId: ami-a1ccd8c3
       InstanceType: t2.micro
       IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
@@ -185,7 +225,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: EncrypterInstance
     Properties:
-      ImageId: ami-c7e0c82c
+      ImageId: ami-a1ccd8c3
       InstanceType: t2.micro
       IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
@@ -304,7 +344,7 @@ Resources:
         Statement:
           Effect: "Allow"
           Principal:
-            Service: "ec2.amazonaws.com"
+            Service: "ec2.amazonaws.com.cn"
           Action: "sts:AssumeRole"
 
   AccessInstanceProfile:
@@ -326,7 +366,7 @@ Resources:
             Action:
               - "s3:GetObject"
               - "s3:PutObject"
-            Resource: "arn:aws:s3:::vault-poc-secret/*"
+            Resource: "arn:*:s3:::vault-poc-secret/*"
 
           - Effect: "Allow"
             Action:
