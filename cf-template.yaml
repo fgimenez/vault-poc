@@ -44,6 +44,9 @@ Resources:
 
             export VAULT_ADDR=http://127.0.0.1:8200
 
+            cat << 'SCRIPT' > /usr/local/bin/vaultinit.sh
+            #!/usr/bin/env bash
+
             cat <<EOF > config.hcl
             storage "inmem" {}
             listener "tcp" {
@@ -98,6 +101,18 @@ Resources:
               --data "$client_cfg_payload" \
               $VAULT_ADDR/v1/auth/aws/config/client
 
+            certificate_cfg_payload=$(cat <<EOF
+            {
+              "aws_public_cert": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlETmpDQ0FoNENDUUQzeVoxdzFBVmtUekFOQmdrcWhraUc5dzBCQVFzRkFEQmNNUXN3Q1FZRFZRUUdFd0pWDQpVekVaTUJjR0ExVUVDQk1RVjJGemFHbHVaM1J2YmlCVGRHRjBaVEVRTUE0R0ExVUVCeE1IVTJWaGRIUnNaVEVnDQpNQjRHQTFVRUNoTVhRVzFoZW05dUlGZGxZaUJUWlhKMmFXTmxjeUJNVEVNd0lCY05NVFV3TlRFek1EazFPVEUxDQpXaGdQTWpFNU5ERXdNVFl3T1RVNU1UVmFNRnd4Q3pBSkJnTlZCQVlUQWxWVE1Sa3dGd1lEVlFRSUV4QlhZWE5vDQphVzVuZEc5dUlGTjBZWFJsTVJBd0RnWURWUVFIRXdkVFpXRjBkR3hsTVNBd0hnWURWUVFLRXhkQmJXRjZiMjRnDQpWMlZpSUZObGNuWnBZMlZ6SUV4TVF6Q0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCDQpBTVdrOXZ5cHBTbURVM0F4WjJDeTJidktlSzNGMVVxTnBNdXllcmlpemkrTlRzWjh0UXF0TmxvYVFjcWh0by9sDQpnc3c5K1FTbkVKZVlXbm1pdkpXT0JkbjlDeURwTjdjcEhWbWVHZ05KTDJmdkltV3lXZTJmMktxL0JMOWw3TjdDDQpQMlpUNTIvc0g5b3JsY2sxbjJ6Tzh4UGk3TUl0Z1BIUXd1M094c0dRc0FkV3VjZHhqSEd0ZGNodWxwbzF1SjMxDQpqc1RBUEtaM3AxL3N4UFhCQkFnQk1hdFBIaFJCcWh3SE8vVHdtNEozR21UTFdON29WRGRzNFczYlBLUWZudzNyDQp2dEJqL1NNNC9JZ1EzeEpzbEZjbDkwVFpiUWJneElpODhSL2dXVGJzN0dzeVQyUHpzdFUzMHlMZEpoS2ZkWkt6DQovYUl6cmFIdm9EVFdGYU9keTArT09hRUNBd0VBQVRBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQWRTek4yKzBFDQpWMUJmUjNEUFdKSFdSZjFiN3psKzFYL1pzZVcyaFlFNXI2WXhyTHYrMVZQZi9MNUk2a0I3R0V0cWhaVXF0ZVk3DQp6QWNlb0xyVnUvN095blJ5ZlFldEpWR2ljaGFheExOTTNsY3I2a2N4T293YitXUVE4NGN3ckIza2V5a0g0Z1JYDQpLSEIycmxXU3h0YSsycGFuU0VPMUpYMnE1amhjRlA5MHJET3RaamxwWXY1N04vWjlpUStkdlFQSm5DaGRxM0JLDQo1cFpsbklEblZWeHFSaWtlN0JGeTh0S3lQajdIem9QRUY1bWg5S2ZubjFZb1NWdSs2MWxNVnYvcVJqbnlLZlM5DQpjOTZuRTk4c1lGajBaVkJ6WHc4U3E0R2g4RmlWbUZIYlFwMXBlR0MxOWlkT1VxeFB4V3Nhc1d4UVhPMGF6WXNQDQo5UnlXTEhLeEgxZE11QT09DQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t"
+            }
+            EOF
+            )
+            curl \
+              --header "X-Vault-Token: $VAULT_TOKEN" \
+              --request POST \
+              --data "$certificate_cfg_payload" \
+              $VAULT_ADDR/v1/auth/aws/config/certificate/aws-cn
+
             test_role_payload=$(cat <<EOF
             {
               "auth_type": "ec2",
@@ -116,6 +131,13 @@ Resources:
               --request POST \
               --data "$test_role_payload" \
               $VAULT_ADDR/v1/auth/aws/role/test
+
+            SCRIPT
+
+            chmod a+x /usr/local/bin/vaultinit.sh
+
+            vaultinit.sh
+
 
           - { AccessRoleARN: !GetAtt AccessRole.Arn }
       Tags:
