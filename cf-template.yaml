@@ -29,7 +29,7 @@ Resources:
   VaultInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-a1ccd8c3
+      ImageId: ami-4f508c22
       InstanceType: t2.micro
       KeyName: vault-poc
       SecurityGroups:
@@ -52,7 +52,7 @@ Resources:
             }
             disable_mlock = true
             EOF
-            vault server -config=config.hcl &
+            vault server -config=config.hcl 2>&1 > /var/log/vault.txt &
             sleep 3
 
             curl \
@@ -81,17 +81,27 @@ Resources:
 
             vault auth enable aws
 
+            client_cfg_payload=$(cat <<EOF
+            {
+              "access_key": "${AccessKey}",
+              "secret_key": "${SecretKeyId}",
+              "endpoint": "ec2.cn-north-1.amazonaws.com.cn",
+              "iam_endpoint": "iam.cn-north-1.amazonaws.com.cn",
+              "sts_endpoint": "sts.cn-north-1.amazonaws.com.cn"
+            }
+            EOF
+            )
             curl \
               --silent \
               --header "X-Vault-Token: $VAULT_TOKEN" \
               --request POST \
-              --data '{ "access_key": "${AccessKey}", "secret_key": "${SecretKeyId}"}' \
+              --data "$client_cfg_payload" \
               $VAULT_ADDR/v1/auth/aws/config/client
 
             test_role_payload=$(cat <<EOF
             {
               "auth_type": "ec2",
-              "bound_region": "eu-central-1",
+              "bound_region": "cn-north-1",
               "bound_iam_role_arn": "${AccessRoleARN}",
               "policies": "test",
               "max_ttl": 1800000,
@@ -116,7 +126,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: VaultInstance
     Properties:
-      ImageId: ami-a1ccd8c3
+      ImageId: ami-4f508c22
       InstanceType: t2.micro
       IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
@@ -214,6 +224,8 @@ Resources:
 
             main
             SCRIPT
+
+            chmod a+x /usr/local/bin/awsauth.sh
 
           - { VaultIP: !GetAtt VaultInstance.PrivateIp }
 
@@ -225,7 +237,7 @@ Resources:
     Type: AWS::EC2::Instance
     DependsOn: EncrypterInstance
     Properties:
-      ImageId: ami-a1ccd8c3
+      ImageId: ami-4f508c22
       InstanceType: t2.micro
       IamInstanceProfile: !Ref AccessInstanceProfile
       KeyName: vault-poc
@@ -323,6 +335,8 @@ Resources:
 
             main
             SCRIPT
+
+            chmod a+x /usr/local/bin/awsauth.sh
 
           - { VaultIP: !GetAtt VaultInstance.PrivateIp }
 
