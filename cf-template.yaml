@@ -102,7 +102,7 @@ Resources:
               capabilities = ["create", "read", "update", "delete", "list"]
             }
             EOF
-            vault write sys/policy/auth-aws-role-admin policy=@auth-aws-role-admin-policy.hcl
+            vault write sys/policy/auth-aws-admin policy=@auth-aws-role-admin-policy.hcl
             ################
             # End of Policies
             ################
@@ -153,7 +153,7 @@ Resources:
               "auth_type": "ec2",
               "bound_region": "cn-north-1",
               "bound_iam_role_arn": "${EncrypterAccessRoleARN}",
-              "policies": "aws-auth-admin,transit",
+              "policies": "auth-aws-admin,transit",
               "max_ttl": 1800000,
               "disallow_reauthentication": false,
               "allow_instance_migration": false
@@ -325,7 +325,7 @@ Resources:
             )
             curl \
               --silent \
-              --header "X-Vault-Token: $VAULT_TOKEN" \
+              --header "X-Vault-Token: $(cat /var/token)" \
               --request POST \
               --data "$decrypter_role_payload" \
               $VAULT_ADDR/v1/auth/aws/role/decrypter
